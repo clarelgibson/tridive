@@ -1,0 +1,139 @@
+---
+title: "Exploring Gender Balance in Clinical Trial Participation"
+subtitle: "Data Wrangling and Exploratory Analysis"
+author: "Clare Gibson"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: paper
+    toc: true
+    number_sections: true
+    toc_float: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+# Load knitr package
+library(knitr)
+
+# Knitr Options
+opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE,
+	fig.align = 'center'
+)
+```
+
+# Introduction
+Using data from [ClinicalTrials.gov](https://clinicaltrials.gov/), this paper attempts to evaluate the distribution of male and female participants in clinical research, across different therapeutic areas. The data I am using for this analysis comes from the [AACT Database](https://aact.ctti-clinicaltrials.org/), an open-source relational database that contains all data points for every study registered on ClinicalTrials.gov.
+
+## Questions
+I plan to focus my analysis on the following questions:
+
+* What is the ratio of male to female participants in completed interventional trials that included sites in the US?
+
+## Set-up
+First I load the packages I need for this analysis.
+```{r libraries}
+library(RPostgreSQL)    # for connecting to a PostgreSQL DB
+library(rstudioapi)     # for hiding credentials
+library(tidyverse)      # for data wrangling
+```
+
+Next I need to establish a connection to the AACT database.
+```{r connect-to-aact}
+# Load the database driver
+drv <- dbDriver("PostgreSQL")
+
+# Create the connection
+con <- dbConnect(drv,
+                 dbname="aact",
+                 host="aact-db.ctti-clinicaltrials.org",
+                 port=5432,
+                 user=askForPassword("Database user"),
+                 password=askForPassword("Database password"))
+```
+
+# Data Wrangling
+Now I can query the database for data on all trials that include the US as a country. The [data dictionary](ref/aact_data_definitions.xlsx) for the AACT database helps me to navigate the tables and columns.
+
+```{r query-the-db}
+# Write the SQL query
+query <- 
+  "SELECT
+     s.nct_id,
+     s.start_date,
+     s.official_title,
+     s.phase,
+     d.name,
+     b.classification,
+     b.category,
+     b.param_type,
+     b.param_value_num
+   FROM studies s
+   INNER JOIN conditions d
+   ON s.nct_id = d.nct_id
+   INNER JOIN baseline_measurements b
+   ON s.nct_id = b.nct_id
+   INNER JOIN result_groups r
+   ON s.nct_id = r.nct_id
+   AND b.ctgov_group_code = r.ctgov_group_code
+   WHERE s.nct_id IN (
+     SELECT DISTINCT nct_id
+     FROM countries c
+     WHERE name = 'United States'
+   )
+   AND s.overall_status = 'Completed'
+   AND b.title = 'Sex: Female, Male'
+   AND b.units = 'Participants'
+   AND b.param_value_num IS NOT NULL
+   AND r.title = 'Total'"
+
+# Save the results of the query to a df
+df_raw <- dbGetQuery(con, query)
+```
+
+Now I can view the first few lines of the dataframe from this query.
+```{r df-head}
+# Display the first 5 rows of the df
+df_raw %>% 
+  head(5) %>% 
+  kable()
+```
+
+I will aggregate the results so that I report the total number of male and female participants by study and condition.
+```{r aggregate-df}
+# Group by study and condition and sum the male/female participants
+df_clean <- df_raw %>% 
+  group_by(nct_id,
+           name,
+           category) %>% 
+  mutate(participant_count = sum(param_value_num)) %>% 
+  select(-param_value_num) %>% 
+  distinct() %>% 
+  ungroup()
+```
+
+Now I need to pivot the data to place female and male participants in their own columns and calculate the total participation by summing the two values.
+```{r df-pivot}
+# Pivot the gender counts into their own columns
+df_clean <- df_clean %>% 
+  mutate(category=str_to_lower(category)) %>% 
+  pivot_wider(names_from=category,
+              values_from=participant_count) %>% 
+  mutate(total = female + male,
+         female_pct = female / total,
+         male_pct = male / total)
+```
+
+
+# Export
+Finally I can export my query to a CSV file for further analysis in Tableau.
+```{r export-csv}
+# Write a CSV output of the df
+write_csv(x=df_clean,
+          file="data-out/gender.csv",
+          na="")
+```
+
