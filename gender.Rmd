@@ -66,29 +66,28 @@ query <-
      s.start_date,
      s.official_title,
      s.phase,
-     d.name,
+     d.mesh_term,
      b.classification,
      b.category,
-     b.param_type,
-     b.param_value_num
+     b.param_value_num,
+     e.gender
    FROM studies s
-   INNER JOIN conditions d
+   INNER JOIN browse_conditions d
    ON s.nct_id = d.nct_id
    INNER JOIN baseline_measurements b
    ON s.nct_id = b.nct_id
+   INNER JOIN eligibilities e
+   ON s.nct_id = e.nct_id
    INNER JOIN result_groups r
    ON s.nct_id = r.nct_id
    AND b.ctgov_group_code = r.ctgov_group_code
-   WHERE s.nct_id IN (
-     SELECT DISTINCT nct_id
-     FROM countries c
-     WHERE name = 'United States'
-   )
-   AND s.overall_status = 'Completed'
+   WHERE s.overall_status = 'Completed'
+   AND e.gender = 'All'
    AND b.title = 'Sex: Female, Male'
    AND b.units = 'Participants'
    AND b.param_value_num IS NOT NULL
-   AND r.title = 'Total'"
+   AND r.title = 'Total'
+   AND d.mesh_type = 'mesh-list'"
 
 # Save the results of the query to a df
 df_raw <- dbGetQuery(con, query)
@@ -107,7 +106,7 @@ I will aggregate the results so that I report the total number of male and femal
 # Group by study and condition and sum the male/female participants
 df_clean <- df_raw %>% 
   group_by(nct_id,
-           name,
+           mesh_term,
            category) %>% 
   mutate(participant_count = sum(param_value_num)) %>% 
   select(-param_value_num) %>% 
