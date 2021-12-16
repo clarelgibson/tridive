@@ -1,0 +1,59 @@
+---
+title: "COVID-19 Vaccines: Clinical Trial Participation vs Real World Use"
+subtitle: "Data Wrangling and Exploratory Analysis"
+author: "Clare Gibson"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: paper
+    toc: true
+    number_sections: true
+    toc_float: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+# Load knitr package
+library(knitr)
+
+# Knitr Options
+opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE,
+	fig.align = 'center'
+)
+```
+
+# Introduction
+This analysis explores relationships between COVID-19 vaccine trial participation and real world vaccination doses administered.
+
+## Data Sources
+The data for this analysis comes from the following sources:
+
+* [AACT Database](https://aact.ctti-clinicaltrials.org/): an open-source relational database that contains all data points for every study registered on ClinicalTrials.gov.
+* [Bloomberg Graphics Covid Vaccine Tracker Data](https://github.com/BloombergGraphics/covid-vaccine-tracker-data): open dataset covering all US states and a growing number of countries internationally.
+
+# Data Wrangling
+First I load the packages I need for this analysis.
+```{r libraries}
+library(RPostgreSQL)    # for connecting to a PostgreSQL DB
+library(rstudioapi)     # for hiding credentials
+library(tidyverse)      # for data wrangling
+```
+
+Next I need to establish a connection to the AACT database.
+```{r connect-to-aact}
+# Load the database driver
+#drv <- dbDriver("PostgreSQL")
+
+# Create the connection
+#con <- dbConnect(drv,
+#                 dbname="aact",
+#                 host="aact-db.ctti-clinicaltrials.org",
+#                 port=5432,
+#                 user=askForPassword("Database user"),
+#                 password=askForPassword("Database password"))
+```
+
+# Data Wrangling
